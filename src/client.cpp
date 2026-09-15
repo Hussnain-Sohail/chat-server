@@ -1,27 +1,25 @@
 #include <boost/asio.hpp>
-#include <boost/url.hpp>
 #include <coroutine>
 #include <array>
 #include "client.hpp"
 
-boost::asio::awaitable<bool> Client::Connect(const std::string &urlToConnect, const std::string &port)
+boost::asio::awaitable<bool> Client::Connect(const std::string &host, const std::string &port)
 {
     try
     {
-        if (urlToConnect.empty())
+        if (host.empty() || port.empty())
             co_return false;
 
-        boost::urls::url url{urlToConnect};
         boost::system::error_code ec;
 
-        auto endpoints = co_await resolver.async_resolve(url.host(), port, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        auto endpoints = co_await resolver.async_resolve(host, port, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec)
         {
             std::cout << ec.message() << std::endl;
             co_return false;
         }
 
-        co_await boost::asio::async_connect(socket, endpoints, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await boost::asio::async_connect(socket.giveSocket(), endpoints, boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec)
         {
             std::cout << ec.message() << std::endl;
@@ -29,7 +27,7 @@ boost::asio::awaitable<bool> Client::Connect(const std::string &urlToConnect, co
         }
 
         std::cout << "Connected" << std::endl;
-        co_return false;
+        co_return true;
     }
     catch (std::exception &exc)
     {
@@ -53,14 +51,14 @@ boost::asio::awaitable<bool> Client::Send(const std::string &message)
 {
     try
     {
-        if (!socket.is_open())
+        if (!socket.giveSocket().is_open())
         {
             std::cout << "Message not sent. Connected to no server" << std::endl;
             co_return false;
         }
 
         boost::system::error_code ec;
-        co_await boost::asio::async_write(socket, boost::asio::buffer(message), boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        co_await boost::asio::async_write(socket.giveSocket(), boost::asio::buffer(message), boost::asio::redirect_error(boost::asio::use_awaitable, ec));
         if (ec)
         {
             std::cout << "Message not sent" << std::endl;
@@ -84,7 +82,7 @@ boost::asio::awaitable<void> Client::Read()
         std::array<char, 1024> readBuffer;
         boost::system::error_code ec;
 
-        int bytesRead = co_await boost::asio::async_read(socket, boost::asio::buffer(readBuffer), boost::asio::transfer_at_least(1), boost::asio::redirect_error(boost::asio::use_awaitable, ec));
+        int bytesRead = co_await boost::asio::async_read(socket.giveSocket(), boost::asio::buffer(readBuffer), boost::asio::transfer_at_least(1), boost::asio::redirect_error(boost::asio::use_awaitable, ec));
 
         if (ec)
         {
@@ -116,7 +114,7 @@ boost::asio::awaitable<void> Client::Start(const std::string &url, const std::st
 
         boost::asio::co_spawn(io, Read(), boost::asio::detached);
 
-        const auto helper = [&]()
+        const auto helper = [&, this]()
         {
             while (true)
             {
@@ -128,8 +126,14 @@ boost::asio::awaitable<void> Client::Start(const std::string &url, const std::st
 
         t1 = std::thread{helper};
     }
+    catch (std::system_error &error)
+    {
+        std::cout << "message " << error.what() << std::endl;
+        std::cout << "error code " << error.code().value() << std::endl;
+    }
     catch (std::exception &exc)
     {
+        std::cout << "start catch" << std::endl;
         std::cout << exc.what() << std::endl;
     }
 }

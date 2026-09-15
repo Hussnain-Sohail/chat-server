@@ -1,15 +1,14 @@
 #include <iostream>
 #include <boost/asio.hpp>
-#include <boost/url.hpp>
 #include <thread>
-
+#include "socket.hpp"
 #pragma once
 using boost::asio::ip::tcp;
 class Client
 {
 private:
     boost::asio::io_context &io;
-    tcp::socket socket{io};
+    Socket socket{io};
     tcp::resolver resolver{io};
     std::thread t1;
 
