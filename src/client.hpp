@@ -2,6 +2,7 @@
 #include <boost/asio.hpp>
 #include <thread>
 #include "socket.hpp"
+#include "resource.hpp"
 #pragma once
 using boost::asio::ip::tcp;
 class Client
@@ -11,6 +12,7 @@ private:
     Socket socket{io};
     tcp::resolver resolver{io};
     std::thread t1;
+    SDL_Resource_Manager rm;
 
     boost::asio::awaitable<bool>
     Connect(const std::string &url, const std::string &port);
@@ -19,6 +21,8 @@ private:
 
     boost::asio::awaitable<bool>
     Send(const std::string &message);
+
+    void Helper();
 
     boost::asio::awaitable<void>
     Read();

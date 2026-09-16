@@ -1,7 +1,13 @@
 #include <boost/asio.hpp>
 #include <coroutine>
 #include <array>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
 #include "client.hpp"
+#include "resource.hpp"
 
 boost::asio::awaitable<bool> Client::Connect(const std::string &host, const std::string &port)
 {
@@ -42,8 +48,19 @@ bool Client::getMessage()
     std::getline(std::cin, message);
     if (message == ".q")
         return true;
+
+    std::string request =
+        "POST /post HTTP/1.1\r\n"
+        "Host: httpbin.org\r\n"
+        "Content-Type: text/plain\r\n"
+        "Content-Length: " +
+        std::to_string(message.size()) + "\r\n"
+                                         "Connection: close\r\n"
+                                         "\r\n" +
+        message;
+
     boost::asio::post(io, [&, this]()
-                      { boost::asio::co_spawn(io, Send(message), boost::asio::detached); });
+                      { boost::asio::co_spawn(io, Send(request), boost::asio::detached); });
     return false;
 }
 
@@ -74,6 +91,48 @@ boost::asio::awaitable<bool> Client::Send(const std::string &message)
         std::cout << exc.what() << std::endl;
     }
 }
+
+void Client::Helper()
+{
+    try
+    {
+        bool created = rm.init();
+        if (!created)
+        {
+            std::cout << "coult not initialize sdl" << std::endl;
+            return;
+        }
+
+        IMGUI_CHECKVERSION();
+        ImGui_ImplSDL3_InitForSDLRenderer(rm.giveWidnow(), rm.giveRender());
+        ImGui_ImplSDLRenderer3_Init(rm.giveRender());
+
+        bool running{true};
+        SDL_Event event;
+        while (running)
+        {
+            SDL_RenderClear(rm.giveRender());
+            ImGui_ImplSDLRenderer3_NewFrame();
+            ImGui_ImplSDL3_NewFrame();
+            ImGui::NewFrame();
+
+            while (SDL_PollEvent(&event))
+            {
+                ImGui_ImplSDL3_ProcessEvent(&event);
+                if (event.type == SDL_EVENT_QUIT)
+                    running = false;
+            }
+
+            ImGui::Render();
+            ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), rm.giveRender());
+            SDL_RenderPresent(rm.giveRender());
+        }
+    }
+    catch (std::exception &exc)
+    {
+        std::cout << exc.what() << std::endl;
+    }
+};
 
 boost::asio::awaitable<void> Client::Read()
 {
@@ -114,17 +173,8 @@ boost::asio::awaitable<void> Client::Start(const std::string &url, const std::st
 
         boost::asio::co_spawn(io, Read(), boost::asio::detached);
 
-        const auto helper = [&, this]()
-        {
-            while (true)
-            {
-                bool userExited = getMessage();
-                if (userExited)
-                    break;
-            }
-        };
-
-        t1 = std::thread{helper};
+        t1 = std::thread{Helper};
+        co_return;
     }
     catch (std::system_error &error)
     {
