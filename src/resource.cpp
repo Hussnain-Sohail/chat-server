@@ -3,7 +3,7 @@
 #include <SDL3/SDL_main.h>
 #include "resource.hpp"
 
-bool SDL_Resource_Manager::init(int width = 0, int height = 0)
+bool SDL_Resource_Manager::init(int width, int height)
 {
     try
     {

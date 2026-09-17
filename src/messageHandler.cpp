@@ -40,8 +40,8 @@ boost::asio::awaitable<bool> messageHandler::Connect(const std::string &host, co
         std::cout << exc.what() << std::endl;
     }
 }
-
-boost::asio::awaitable<bool> messageHandler::Send(const std::string &message)
+// not passing message by referance since client uses one message object which can be changed during a pending operation
+boost::asio::awaitable<bool> messageHandler::Send(const std::string message)
 {
     try
     {
@@ -84,41 +84,11 @@ boost::asio::awaitable<void> messageHandler::Read()
             co_return;
         }
 
-        {
-            std::unique_lock<std::mutex> lock{mtx};
-            std::cout << readBuffer << std::endl;
-            messages.push_back(std::move(readBuffer));
-        }
+        ImGui::Text(readBuffer.c_str());
         co_await Read();
     }
     catch (std::exception &exc)
     {
-        std::cout << exc.what() << std::endl;
-    }
-}
-
-boost::asio::awaitable<void> messageHandler::Start(const std::string &url, const std::string &port)
-{
-    try
-    {
-        bool connected = co_await Connect(url, port);
-        if (!connected)
-        {
-            std::cout << "Could not connect to server" << std::endl;
-            co_return;
-        }
-
-        boost::asio::co_spawn(io, Read(), boost::asio::detached);
-        co_return;
-    }
-    catch (std::system_error &error)
-    {
-        std::cout << "message " << error.what() << std::endl;
-        std::cout << "error code " << error.code().value() << std::endl;
-    }
-    catch (std::exception &exc)
-    {
-        std::cout << "start catch" << std::endl;
         std::cout << exc.what() << std::endl;
     }
 }
